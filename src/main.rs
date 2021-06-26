@@ -201,16 +201,28 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
     }
 
     dbg!(start.elapsed());
+    let mid = start.elapsed().as_secs_f64();
     let mut iteration = 0;
     let mut score = compute_score_detail(&input, &answer).0;
-    while start.elapsed() <= time_limit {
+    loop {
+        let ratio = (start.elapsed().as_secs_f64() - mid) / (time_limit.as_secs_f64() - mid);
+        if ratio >= 1.0 {
+            break;
+        }
+
+        let start_temp = 100000.0;
+        let end_temp = 10000.0;
+        let temp = start_temp + (end_temp - start_temp) * ratio;
+
         iteration += 1;
         if rng.gen::<bool>() {
             let idx1 = rng.gen_range(0, LEN) as usize;
             let idx2 = rng.gen_range(0, LEN) as usize;
             answer.swap(idx1, idx2);
             let new_score = compute_score_detail(&input, &answer).0;
-            if score <= new_score {
+            let diff = new_score as f64 - score as f64;
+            let prob = (diff / temp).exp();
+            if prob > rng.gen::<f64>() {
                 score = new_score;
             } else {
                 answer.swap(idx1, idx2);
@@ -225,7 +237,9 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
             }
             answer[idx] = new_row;
             let new_score = compute_score_detail(&input, &answer).0;
-            if score <= new_score {
+            let diff = new_score as f64 - score as f64;
+            let prob = (diff / temp).exp();
+            if prob > rng.gen::<f64>() {
                 score = new_score;
             } else {
                 answer[idx] = old_row;
