@@ -90,11 +90,12 @@ pub fn compute_score_detail(input: &Input, out: &Output) -> (i64, String) {
     }
     for k in 0..input.M {
         let mut used = false;
-        for i in 0..N {
+        'find: for i in 0..N {
             for j in 0..N {
                 for d in 0..2 {
                     if is_substring(&out, &input.s[k], i, j, d) {
                         used = true;
+                        break 'find;
                     }
                 }
             }

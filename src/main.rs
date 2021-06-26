@@ -196,18 +196,36 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
     let mut iteration = 0;
     while start.elapsed() <= time_limit {
         iteration += 1;
-        let idx1 = rng.gen_range(0, LEN) as usize;
-        let idx2 = rng.gen_range(0, LEN) as usize;
         let score = compute_score_detail(&input, &answer).0;
-        answer.swap(idx1, idx2);
-        let new_score = compute_score_detail(&input, &answer).0;
-        if score <= new_score {
-            //dbg!(new_score);
-        } else {
+        if rng.gen::<bool>() {
+            let idx1 = rng.gen_range(0, LEN) as usize;
+            let idx2 = rng.gen_range(0, LEN) as usize;
             answer.swap(idx1, idx2);
+            let new_score = compute_score_detail(&input, &answer).0;
+            if score <= new_score {
+                //dbg!(new_score);
+            } else {
+                answer.swap(idx1, idx2);
+            }
+        } else {
+            let idx = rng.gen_range(0, LEN) as usize;
+            let st = rng.gen_range(0, LEN) as usize;
+            let old_row = answer[idx].clone();
+            let mut new_row = Vec::new();
+            for i in 0..LEN {
+                new_row.push(old_row[(i as usize + st) % LEN as usize]);
+            }
+            answer[idx] = new_row;
+            let new_score = compute_score_detail(&input, &answer).0;
+            if score <= new_score {
+                //dbg!(new_score);
+            } else {
+                answer[idx] = old_row;
+            }
         }
     }
     dbg!(iteration);
+    dbg!(compute_score_detail(&input, &answer).0);
 
     answer
 }
@@ -228,7 +246,7 @@ fn local_test() {
     eprintln!("{}", sum / num as i64);
 }
 
-const LOCAL: bool = true;
+const LOCAL: bool = false;
 
 fn main() {
     if LOCAL {
