@@ -202,16 +202,16 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
 
     dbg!(start.elapsed());
     let mut iteration = 0;
+    let mut score = compute_score_detail(&input, &answer).0;
     while start.elapsed() <= time_limit {
         iteration += 1;
-        let score = compute_score_detail(&input, &answer).0;
         if rng.gen::<bool>() {
             let idx1 = rng.gen_range(0, LEN) as usize;
             let idx2 = rng.gen_range(0, LEN) as usize;
             answer.swap(idx1, idx2);
             let new_score = compute_score_detail(&input, &answer).0;
             if score <= new_score {
-                //dbg!(new_score);
+                score = new_score;
             } else {
                 answer.swap(idx1, idx2);
             }
@@ -226,7 +226,7 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
             answer[idx] = new_row;
             let new_score = compute_score_detail(&input, &answer).0;
             if score <= new_score {
-                //dbg!(new_score);
+                score = new_score;
             } else {
                 answer[idx] = old_row;
             }
