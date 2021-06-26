@@ -87,77 +87,17 @@ impl Cell {
     fn new() -> Cell {
         Cell { count: 0, base: 0 }
     }
-    // true if it's removed
-    fn remove(&mut self) -> bool {
+    fn remove(&mut self) {
         self.count -= 1;
-        self.count == 0
     }
     fn can_set(&self, base: u8) -> bool {
         self.count == 0 || self.base == base
     }
-    // true if it's new
-    fn set(&mut self, base: u8) -> bool {
+    fn set(&mut self, base: u8) {
         assert!(self.can_set(base));
         self.count += 1;
         self.base = base;
-        self.count == 1
     }
-}
-
-struct BaseCounts(Matrix<Cell>);
-
-impl BaseCounts {
-    fn new() -> BaseCounts {
-        BaseCounts(Matrix(vec![vec![Cell::new(); LEN as usize]; LEN as usize]))
-    }
-
-    fn get_char(&self, pos: Pos) -> char {
-        let cell = &self.0[pos];
-        if cell.count == 0 {
-            '.'
-        } else {
-            (b'a' + cell.base) as char
-        }
-    }
-
-    fn add_pat(&mut self, pat: &[u8], pos: Pos, dir: Dir) -> i32 {
-        let mut cur = pos;
-        let mut diff = 0;
-        for &base in pat {
-            if self.0[cur].set(base) {
-                diff -= 1;
-            }
-            cur = cur.next(dir);
-        }
-        diff
-    }
-
-    fn remove_pat(&mut self, pat: &[u8], pos: Pos, dir: Dir) -> i32 {
-        let mut cur = pos;
-        let mut diff = 0;
-        for _ in pat {
-            if self.0[cur].remove() {
-                diff += 1;
-            }
-            cur = cur.next(dir);
-        }
-        diff
-    }
-
-    fn can_place(&self, pat: &[u8], pos: Pos, dir: Dir) -> bool {
-        let mut cur = pos;
-        for &base in pat {
-            if !self.0[cur].can_set(base) {
-                return false;
-            }
-            cur = cur.next(dir);
-        }
-        true
-    }
-}
-
-fn to_num(score: (i32, i32)) -> f64 {
-    score.0 as f64 + score.1 as f64 / 10.0
 }
 
 fn main() {
@@ -176,84 +116,74 @@ fn main() {
         }
         patterns.push(p);
     }
-    let mut base_counts = BaseCounts::new();
-    let mut placements: Vec<Option<(Pos, Dir)>> = vec![None; m];
+    let mut matrix = Matrix(vec![vec![Cell::new(); LEN as usize]; LEN as usize]); // (count, char)
+    let mut state: Vec<Option<(Pos, Dir)>> = vec![None; m];
 
     let mut rng = thread_rng();
 
-    let mut score = (0, LEN as i32 * LEN as i32);
+    let mut score = 0;
 
-    loop {
-        let time_ratio = start.elapsed().as_secs_f64() / time_limit.as_secs_f64();
-        if time_ratio > 1.0 {
-            break;
-        }
-        let start_temp = 1.0;
-        let end_temp = 1.0 / 10.0;
-        let temp = start_temp + (end_temp - start_temp) * time_ratio;
-
+    while start.elapsed() <= time_limit {
         let index = rng.gen_range(0, m);
         let pos: Pos = rng.gen();
         let dir: Dir = rng.gen();
 
-        let pat = &patterns[index];
-
         // TODO: define Pos::iter(dir)
 
-        let prev_placement = placements[index].clone();
-        let mut score_diff = (1i32, 0i32);
+        let prev_state = state[index].clone();
 
-        if let Some((pos, dir)) = placements[index] {
-            score_diff.0 -= 1;
-
-            assert!(placements[index].is_some());
-            score_diff.1 += base_counts.remove_pat(pat, pos, dir);
-            placements[index] = None;
+        if let Some((pos, dir)) = state[index] {
+            let mut cur = pos;
+            for _ in &patterns[index] {
+                matrix[cur].remove();
+                cur = cur.next(dir);
+            }
+            assert!(state[index].is_some());
+            score -= 1;
+            state[index] = None;
         }
 
-        if !base_counts.can_place(pat, pos, dir) {
-            if let Some((pos, dir)) = prev_placement {
-                assert!(placements[index].is_none());
-                base_counts.add_pat(pat, pos, dir);
-                placements[index] = Some((pos, dir));
-            }
-            continue;
+        let mut cur = pos;
+        let mut valid = true;
+        for &base in &patterns[index] {
+            valid &= matrix[cur].can_set(base);
+            cur = cur.next(dir);
         }
 
-        assert!(placements[index].is_none());
-        score_diff.1 += base_counts.add_pat(pat, pos, dir);
-        placements[index] = Some((pos, dir));
-
-        let new_score = (score.0 + score_diff.0, score.1 + score_diff.1);
-        let diff = to_num(new_score) - to_num(score);
-        let prob = (diff / temp).exp();
-        if prob >= rng.gen::<f64>() {
-            /*
-            if score < new_score {
-                eprintln!("{:?} {:?} {:.2}", start.elapsed(), score, to_num(score));
+        if valid {
+            let mut cur = pos;
+            for &base in &patterns[index] {
+                matrix[cur].set(base);
+                cur = cur.next(dir);
             }
-            */
-            score = new_score;
+            assert!(state[index].is_none());
+            score += 1;
+            state[index] = Some((pos, dir));
         } else {
-            assert!(placements[index].is_some());
-            base_counts.remove_pat(pat, pos, dir);
-            placements[index] = None;
-
-            if let Some((pos, dir)) = prev_placement {
-                assert!(placements[index].is_none());
-                base_counts.add_pat(pat, pos, dir);
-                placements[index] = Some((pos, dir));
+            if let Some((pos, dir)) = prev_state {
+                let mut cur = pos;
+                for &base in &patterns[index] {
+                    matrix[cur].set(base);
+                    cur = cur.next(dir);
+                }
+                assert!(state[index].is_none());
+                score += 1;
+                state[index] = prev_state;
             }
         }
     }
 
     for r in 0..LEN {
         for c in 0..LEN {
-            print!("{}", base_counts.get_char(Pos::new(r, c)));
+            let cell = &matrix[Pos::new(r, c)];
+            if cell.count == 0 {
+                print!(".");
+            } else {
+                print!("{}", (b'a' + cell.base) as char);
+            }
         }
         print!("\n");
     }
 
     dbg!(score);
-    dbg!(score.0 as f64 / m as f64);
 }
