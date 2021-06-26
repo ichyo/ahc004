@@ -5,6 +5,7 @@ const LEN: u8 = 20u8;
 
 use rand::distributions::{Distribution, Standard};
 use rand::prelude::*;
+use rustc_hash::FxHashSet;
 use std::collections::HashSet;
 use std::ops::Index;
 use std::ops::IndexMut;
@@ -93,14 +94,14 @@ fn find_maximum_prefix(row: &str, new: &str) -> usize {
 
 fn greedy_row(
     first: usize,
-    used: &HashSet<usize>,
+    used: &FxHashSet<usize>,
     pattern_strs: &[String],
-    includes: &Vec<HashSet<usize>>,
-) -> (String, HashSet<usize>) {
+    includes: &Vec<FxHashSet<usize>>,
+) -> (String, FxHashSet<usize>) {
     let m = pattern_strs.len();
 
     let mut row = String::new();
-    let mut local_used = HashSet::new();
+    let mut local_used = FxHashSet::default();
 
     row += &pattern_strs[first];
     local_used.insert(first);
@@ -129,12 +130,6 @@ fn greedy_row(
         local_used.extend(includes[next].iter());
     }
 
-    let mut rng = thread_rng();
-    while row.len() < LEN as usize {
-        let c = (b'A' + rng.gen_range(0, 8) as u8) as char;
-        row.push(c);
-    }
-
     (row, local_used)
 }
 
@@ -143,7 +138,7 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
 
     let mut m = input.M;
 
-    let mut pattern_strs: HashSet<String> = HashSet::new();
+    let mut pattern_strs: FxHashSet<String> = FxHashSet::default();
     for i in 0..m {
         let s: String = input.s[i].iter().collect::<String>();
         pattern_strs.insert(s.clone());
@@ -165,7 +160,7 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
 
     // TODO: handle equivalent strings get more scores
 
-    let mut includes: Vec<HashSet<usize>> = vec![HashSet::new(); m];
+    let mut includes: Vec<FxHashSet<usize>> = vec![FxHashSet::default(); m];
     let mut included_by: Vec<Vec<usize>> = vec![Vec::new(); m];
     for i in 0..m {
         for j in i + 1..m {
@@ -178,11 +173,11 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
 
     let mut rng = thread_rng();
 
-    let mut used = HashSet::new();
+    let mut used = FxHashSet::default();
 
     let mut answer = Vec::new();
     for _ in 0..LEN {
-        let (_, (row, using)) = (0..m)
+        let (_, (mut row, using)) = (0..m)
             .filter(|idx| !used.contains(idx))
             .filter(|&idx| included_by[idx].is_empty())
             .map(|idx| (idx, greedy_row(idx, &used, &pattern_strs, &includes)))
@@ -196,9 +191,16 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
             }
         }
 
+        let mut rng = thread_rng();
+        while row.len() < LEN as usize {
+            let c = (b'A' + rng.gen_range(0, 8) as u8) as char;
+            row.push(c);
+        }
+
         answer.push(row.chars().collect());
     }
 
+    dbg!(start.elapsed());
     let mut iteration = 0;
     while start.elapsed() <= time_limit {
         iteration += 1;

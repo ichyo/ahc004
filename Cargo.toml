@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 rand = { version = "=0.7.3", features = ["small_rng"] }
 rand_chacha = "=0.2.2"
+rustc-hash = "=1.1.0"
