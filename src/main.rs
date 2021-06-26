@@ -139,6 +139,7 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
     for _ in 0..LEN {
         let first = (0..m)
             .filter(|idx| !used.contains(idx))
+            .filter(|&idx| included_by[idx].is_empty())
             .max_by_key(|&idx| (includes[idx].len(), (pattern_strs[idx].len() as i32).neg()))
             .unwrap();
 
@@ -156,6 +157,7 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
 
         while let Some((next, com_len)) = (0..m)
             .filter(|idx| !used.contains(idx))
+            .filter(|&idx| included_by[idx].is_empty())
             .map(|idx| (idx, find_maximum_prefix(&row, &pattern_strs[idx])))
             .filter(|(idx, com_len)| row.len() + pattern_strs[*idx].len() - com_len <= LEN as usize)
             .max_by_key(|&(idx, com_len)| {
