@@ -13,7 +13,7 @@ use std::time::Duration;
 use std::time::Instant;
 use text_scanner::scan;
 
-use crate::judge::{Input, Output};
+use crate::judge::{compute_score_detail, Input, Output};
 
 struct Matrix<T>(Vec<Vec<T>>);
 
@@ -192,6 +192,22 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
 
         answer.push(row.chars().collect());
     }
+
+    let mut iteration = 0;
+    while start.elapsed() <= time_limit {
+        iteration += 1;
+        let idx1 = rng.gen_range(0, LEN) as usize;
+        let idx2 = rng.gen_range(0, LEN) as usize;
+        let score = compute_score_detail(&input, &answer).0;
+        answer.swap(idx1, idx2);
+        let new_score = compute_score_detail(&input, &answer).0;
+        if score <= new_score {
+            //dbg!(new_score);
+        } else {
+            answer.swap(idx1, idx2);
+        }
+    }
+    dbg!(iteration);
 
     answer
 }
