@@ -139,7 +139,7 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
     for _ in 0..LEN {
         let first = (0..m)
             .filter(|idx| !used.contains(idx))
-            .max_by_key(|idx| includes[*idx].len())
+            .max_by_key(|&idx| (includes[idx].len(), (pattern_strs[idx].len() as i32).neg()))
             .unwrap();
 
         let mut row = pattern_strs[first].to_string();
