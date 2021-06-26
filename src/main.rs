@@ -1,3 +1,4 @@
+mod judge;
 mod text_scanner;
 
 const LEN: u8 = 20u8;
@@ -11,6 +12,8 @@ use std::ops::Neg;
 use std::time::Duration;
 use std::time::Instant;
 use text_scanner::scan;
+
+use crate::judge::{Input, Output};
 
 struct Matrix<T>(Vec<Vec<T>>);
 
@@ -88,17 +91,14 @@ fn find_maximum_prefix(row: &str, new: &str) -> usize {
     unreachable!();
 }
 
-fn main() {
+fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
     let start = Instant::now();
-    let time_limit = Duration::from_secs_f64(2.9);
 
-    let n: u8 = scan();
-    assert!(n == LEN);
-    let mut m: usize = scan();
+    let mut m = input.M;
 
     let mut pattern_strs: HashSet<String> = HashSet::new();
-    for _ in 0..m {
-        let s: String = scan::<String>();
+    for i in 0..m {
+        let s: String = input.s[i].iter().collect::<String>();
         pattern_strs.insert(s.clone());
     }
 
@@ -119,10 +119,12 @@ fn main() {
     // TODO: handle equivalent strings get more scores
 
     let mut includes: Vec<HashSet<usize>> = vec![HashSet::new(); m];
+    let mut included_by: Vec<Vec<usize>> = vec![Vec::new(); m];
     for i in 0..m {
         for j in i + 1..m {
             if pattern_strs[j].contains(&pattern_strs[i]) {
                 includes[j].insert(i);
+                included_by[i].push(j);
             }
         }
     }
@@ -147,7 +149,7 @@ fn main() {
         let to_remove = includes[first].clone();
         estimated_score += to_remove.len();
         for x in to_remove {
-            for i in 0..m {
+            for &i in &included_by[x] {
                 includes[i].remove(&x);
             }
         }
@@ -177,7 +179,7 @@ fn main() {
             let to_remove = includes[next].clone();
             estimated_score += to_remove.len();
             for x in to_remove {
-                for i in 0..m {
+                for &i in &included_by[x] {
                     includes[i].remove(&x);
                 }
             }
@@ -188,10 +190,54 @@ fn main() {
             row.push(c);
         }
 
-        answer.push(row);
+        answer.push(row.chars().collect());
     }
-    dbg!(estimated_score);
-    for s in answer {
-        println!("{}", s);
+
+    answer
+}
+
+fn local_test() {
+    let num = 100;
+    let mut sum = 0i64;
+    for seed in 0..num {
+        let input = judge::gen(seed);
+        let output = solve(&input, Duration::from_secs_f64(1.5));
+        let (score, reason) = judge::compute_score_detail(&input, &output);
+        if reason != "" {
+            panic!("reason = {}", reason);
+        }
+        eprintln!("seed = {:02}, score = {}", seed, score,);
+        sum += score;
+    }
+    eprintln!("{}", sum / num as i64);
+}
+
+const LOCAL: bool = true;
+
+fn main() {
+    if LOCAL {
+        local_test();
+        return;
+    }
+
+    let time_limit = Duration::from_secs_f64(2.9);
+
+    let n: u8 = scan();
+    assert!(n == LEN);
+
+    let m: usize = scan();
+
+    let mut strs = Vec::new();
+    for _ in 0..m {
+        let s: String = scan::<String>();
+        strs.push(s.chars().collect());
+    }
+
+    let input = Input { M: m, s: strs };
+
+    let output: Output = solve(&input, time_limit);
+
+    for i in 0..LEN {
+        println!("{}", output[i as usize].iter().collect::<String>());
     }
 }
