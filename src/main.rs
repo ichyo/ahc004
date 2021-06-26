@@ -91,6 +91,53 @@ fn find_maximum_prefix(row: &str, new: &str) -> usize {
     unreachable!();
 }
 
+fn greedy_row(
+    first: usize,
+    used: &HashSet<usize>,
+    pattern_strs: &[String],
+    includes: &Vec<HashSet<usize>>,
+) -> (String, HashSet<usize>) {
+    let m = pattern_strs.len();
+
+    let mut row = String::new();
+    let mut local_used = HashSet::new();
+
+    row += &pattern_strs[first];
+    local_used.insert(first);
+    local_used.extend(includes[first].iter());
+
+    while let Some((next, com_len)) = (0..m)
+        .filter(|idx| !used.contains(idx) && !local_used.contains(idx))
+        .map(|idx| (idx, find_maximum_prefix(&row, &pattern_strs[idx])))
+        .filter(|(idx, com_len)| row.len() + pattern_strs[*idx].len() - com_len <= LEN as usize)
+        .max_by_key(|&(idx, com_len)| {
+            (
+                if com_len == pattern_strs[idx].len() {
+                    1
+                } else {
+                    0
+                },
+                com_len,
+                ((pattern_strs[idx].len() - com_len) as i32).neg(),
+                includes[idx].len(),
+            )
+        })
+    {
+        row += &pattern_strs[next][com_len..];
+        assert!(row.len() <= LEN as usize);
+        local_used.insert(next);
+        local_used.extend(includes[next].iter());
+    }
+
+    let mut rng = thread_rng();
+    while row.len() < LEN as usize {
+        let c = (b'A' + rng.gen_range(0, 8) as u8) as char;
+        row.push(c);
+    }
+
+    (row, local_used)
+}
+
 fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
     let start = Instant::now();
 
@@ -129,67 +176,24 @@ fn solve(input: &judge::Input, time_limit: Duration) -> judge::Output {
         }
     }
 
-    let mut estimated_score = 0;
-
     let mut rng = thread_rng();
 
     let mut used = HashSet::new();
 
     let mut answer = Vec::new();
     for _ in 0..LEN {
-        let first = (0..m)
+        let (_, (row, using)) = (0..m)
             .filter(|idx| !used.contains(idx))
             .filter(|&idx| included_by[idx].is_empty())
-            .max_by_key(|&idx| (includes[idx].len(), (pattern_strs[idx].len() as i32).neg()))
+            .map(|idx| (idx, greedy_row(idx, &used, &pattern_strs, &includes)))
+            .max_by_key(|(_, (_, using))| using.len())
             .unwrap();
 
-        let mut row = pattern_strs[first].to_string();
-        used.insert(first);
-        estimated_score += 1;
-
-        let to_remove = includes[first].clone();
-        estimated_score += to_remove.len();
-        for x in to_remove {
+        for x in using {
+            used.insert(x);
             for &i in &included_by[x] {
                 includes[i].remove(&x);
             }
-        }
-
-        while let Some((next, com_len)) = (0..m)
-            .filter(|idx| !used.contains(idx))
-            .filter(|&idx| included_by[idx].is_empty())
-            .map(|idx| (idx, find_maximum_prefix(&row, &pattern_strs[idx])))
-            .filter(|(idx, com_len)| row.len() + pattern_strs[*idx].len() - com_len <= LEN as usize)
-            .max_by_key(|&(idx, com_len)| {
-                (
-                    if com_len == pattern_strs[idx].len() {
-                        1
-                    } else {
-                        0
-                    },
-                    com_len,
-                    ((pattern_strs[idx].len() - com_len) as i32).neg(),
-                    includes[idx].len(),
-                )
-            })
-        {
-            row += &pattern_strs[next][com_len..];
-            assert!(row.len() <= LEN as usize);
-            used.insert(next);
-            estimated_score += 1;
-
-            let to_remove = includes[next].clone();
-            estimated_score += to_remove.len();
-            for x in to_remove {
-                for &i in &included_by[x] {
-                    includes[i].remove(&x);
-                }
-            }
-        }
-
-        while row.len() < LEN as usize {
-            let c = (b'A' + rng.gen_range(0, 8) as u8) as char;
-            row.push(c);
         }
 
         answer.push(row.chars().collect());
