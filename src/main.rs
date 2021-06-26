@@ -4,8 +4,10 @@ const LEN: u8 = 20u8;
 
 use rand::distributions::{Distribution, Standard};
 use rand::prelude::*;
+use std::collections::HashSet;
 use std::ops::Index;
 use std::ops::IndexMut;
+use std::ops::Neg;
 use std::time::Duration;
 use std::time::Instant;
 use text_scanner::scan;
@@ -77,27 +79,13 @@ impl Distribution<Dir> for Standard {
     }
 }
 
-#[derive(Debug, Clone)]
-struct Cell {
-    count: usize,
-    base: u8, // 0 -> 7
-}
-
-impl Cell {
-    fn new() -> Cell {
-        Cell { count: 0, base: 0 }
+fn find_maximum_prefix(row: &str, new: &str) -> usize {
+    for i in (0..=(row.len().min(new.len()))).rev() {
+        if row[row.len() - i..] == new[0..i] {
+            return i;
+        }
     }
-    fn remove(&mut self) {
-        self.count -= 1;
-    }
-    fn can_set(&self, base: u8) -> bool {
-        self.count == 0 || self.base == base
-    }
-    fn set(&mut self, base: u8) {
-        assert!(self.can_set(base));
-        self.count += 1;
-        self.base = base;
-    }
+    unreachable!();
 }
 
 fn main() {
@@ -106,84 +94,104 @@ fn main() {
 
     let n: u8 = scan();
     assert!(n == LEN);
-    let m: usize = scan();
-    let mut patterns: Vec<Vec<u8>> = Vec::new();
+    let mut m: usize = scan();
+
+    let mut pattern_strs: HashSet<String> = HashSet::new();
     for _ in 0..m {
-        let s: Vec<char> = scan::<String>().chars().collect();
+        let s: String = scan::<String>();
+        pattern_strs.insert(s.clone());
+    }
+
+    let mut pattern_strs: Vec<String> = pattern_strs.into_iter().collect::<Vec<_>>();
+    pattern_strs.sort_by_key(|s| s.len());
+    m = pattern_strs.len();
+
+    let mut patterns: Vec<Vec<u8>> = Vec::new();
+    for s in &pattern_strs {
+        let s: Vec<char> = s.chars().collect();
         let mut p = Vec::new();
         for c in s {
-            p.push(c as u8 - b'a');
+            p.push(c as u8 - b'A');
         }
         patterns.push(p);
     }
-    let mut matrix = Matrix(vec![vec![Cell::new(); LEN as usize]; LEN as usize]); // (count, char)
-    let mut state: Vec<Option<(Pos, Dir)>> = vec![None; m];
+
+    // TODO: handle equivalent strings get more scores
+
+    let mut includes: Vec<HashSet<usize>> = vec![HashSet::new(); m];
+    for i in 0..m {
+        for j in i + 1..m {
+            if pattern_strs[j].contains(&pattern_strs[i]) {
+                includes[j].insert(i);
+            }
+        }
+    }
+
+    let mut estimated_score = 0;
 
     let mut rng = thread_rng();
 
-    let mut score = 0;
+    let mut used = HashSet::new();
 
-    while start.elapsed() <= time_limit {
-        let index = rng.gen_range(0, m);
-        let pos: Pos = rng.gen();
-        let dir: Dir = rng.gen();
+    let mut answer = Vec::new();
+    for _ in 0..LEN {
+        let first = (0..m)
+            .filter(|idx| !used.contains(idx))
+            .max_by_key(|idx| includes[*idx].len())
+            .unwrap();
 
-        // TODO: define Pos::iter(dir)
+        let mut row = pattern_strs[first].to_string();
+        used.insert(first);
+        estimated_score += 1;
 
-        let prev_state = state[index].clone();
-
-        if let Some((pos, dir)) = state[index] {
-            let mut cur = pos;
-            for _ in &patterns[index] {
-                matrix[cur].remove();
-                cur = cur.next(dir);
+        let to_remove = includes[first].clone();
+        estimated_score += to_remove.len();
+        for x in to_remove {
+            for i in 0..m {
+                includes[i].remove(&x);
             }
-            assert!(state[index].is_some());
-            score -= 1;
-            state[index] = None;
         }
 
-        let mut cur = pos;
-        let mut valid = true;
-        for &base in &patterns[index] {
-            valid &= matrix[cur].can_set(base);
-            cur = cur.next(dir);
-        }
+        while let Some((next, com_len)) = (0..m)
+            .filter(|idx| !used.contains(idx))
+            .map(|idx| (idx, find_maximum_prefix(&row, &pattern_strs[idx])))
+            .filter(|(idx, com_len)| row.len() + pattern_strs[*idx].len() - com_len <= LEN as usize)
+            .max_by_key(|&(idx, com_len)| {
+                (
+                    if com_len == pattern_strs[idx].len() {
+                        1
+                    } else {
+                        0
+                    },
+                    com_len,
+                    ((pattern_strs[idx].len() - com_len) as i32).neg(),
+                    includes[idx].len(),
+                )
+            })
+        {
+            row += &pattern_strs[next][com_len..];
+            assert!(row.len() <= LEN as usize);
+            used.insert(next);
+            estimated_score += 1;
 
-        if valid {
-            let mut cur = pos;
-            for &base in &patterns[index] {
-                matrix[cur].set(base);
-                cur = cur.next(dir);
-            }
-            assert!(state[index].is_none());
-            score += 1;
-            state[index] = Some((pos, dir));
-        } else {
-            if let Some((pos, dir)) = prev_state {
-                let mut cur = pos;
-                for &base in &patterns[index] {
-                    matrix[cur].set(base);
-                    cur = cur.next(dir);
+            let to_remove = includes[next].clone();
+            estimated_score += to_remove.len();
+            for x in to_remove {
+                for i in 0..m {
+                    includes[i].remove(&x);
                 }
-                assert!(state[index].is_none());
-                score += 1;
-                state[index] = prev_state;
             }
         }
-    }
 
-    for r in 0..LEN {
-        for c in 0..LEN {
-            let cell = &matrix[Pos::new(r, c)];
-            if cell.count == 0 {
-                print!(".");
-            } else {
-                print!("{}", (b'a' + cell.base) as char);
-            }
+        while row.len() < LEN as usize {
+            let c = (b'A' + rng.gen_range(0, 8) as u8) as char;
+            row.push(c);
         }
-        print!("\n");
-    }
 
-    dbg!(score);
+        answer.push(row);
+    }
+    dbg!(estimated_score);
+    for s in answer {
+        println!("{}", s);
+    }
 }
